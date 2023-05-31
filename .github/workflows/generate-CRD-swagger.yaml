@@ -36,7 +36,7 @@ jobs:
           test -z ${{ github.event.inputs.crdApiGroupPrefix }} || export CRD_API_GROUP_ARGS="-n ${{ github.event.inputs.crdApiGroupPrefix }}"
           echo "CRD Src Args: ${CRD_SRC_ARGS}"
           echo "CRD Api Group Prefix Args: ${CRD_API_GROUP_ARGS}"
-          curl -o $(pwd)/swagger ${CRD_SRC_ARGS}
+          wget -O $(pwd)/swagger ${CRD_SRC_ARGS}
           ls -l $(pwd)
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
           -v "$(pwd)/${GEN_DIR}":"$(pwd)/${GEN_DIR}" \
