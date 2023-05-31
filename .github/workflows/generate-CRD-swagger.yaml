@@ -38,9 +38,7 @@ jobs:
           echo "CRD Api Group Prefix Args: ${CRD_API_GROUP_ARGS}"
           curl -o $(pwd)/swagger ${CRD_SRC_ARGS}
           ls -a $(pwd)
-          docker run \
-            --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$(pwd)/${GEN_DIR}":"$(pwd)/${GEN_DIR}" \
             -v "$(pwd)/swagger":"$(pwd)/swagger"
             --network host \
