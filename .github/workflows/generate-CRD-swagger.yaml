@@ -1,4 +1,4 @@
-name: CRD Java Model Generate
+name: CRD Swagger Java Model Generate
 on:
   workflow_dispatch:
     inputs:
