@@ -32,7 +32,7 @@ jobs:
       - name: Run CRD Model Generation
         run: |
           mkdir -p ${GEN_DIR}
-          read CRD_SRC_ARGS < <(echo '${{ github.event.inputs.swagger }}' | perl -ne 'print join " ", map {"-u $_"} split /,/')
+          read CRD_SRC_ARGS < <(echo '${{ github.event.inputs.swagger }}')
           test -z ${{ github.event.inputs.crdApiGroupPrefix }} || export CRD_API_GROUP_ARGS="-n ${{ github.event.inputs.crdApiGroupPrefix }}"
           echo "CRD Src Args: ${CRD_SRC_ARGS}"
           echo "CRD Api Group Prefix Args: ${CRD_API_GROUP_ARGS}"
