@@ -39,15 +39,15 @@ jobs:
           curl -o $(pwd)/swagger ${CRD_SRC_ARGS}
           ls -a $(pwd)
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$(pwd)/${GEN_DIR}":"$(pwd)/${GEN_DIR}" \
-            -v "$(pwd)/swagger":"$(pwd)/swagger"
-            --network host \
-            ${IMAGE_NAME}:${IMAGE_TAG} \
-            /generatev2.sh \
-            -u $(pwd)/swagger \
-            -n ${{ github.event.inputs.generatingJavaPackage }} \
-            -p ${{ github.event.inputs.generatingJavaPackage }} \
-            -o "$(pwd)/${GEN_DIR}"
+          -v "$(pwd)/${GEN_DIR}":"$(pwd)/${GEN_DIR}" \
+          -v "$(pwd)/swagger":"$(pwd)/swagger" \
+          --network host \
+          ${IMAGE_NAME}:${IMAGE_TAG} \
+          /generatev2.sh \
+          -u $(pwd)/swagger \
+          -n ${{ github.event.inputs.generatingJavaPackage }} \
+          -p ${{ github.event.inputs.generatingJavaPackage }} \
+          -o "$(pwd)/${GEN_DIR}"
           ls -lh ${GEN_DIR}
       - uses: actions/upload-artifact@v3
         with:
