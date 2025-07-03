@@ -18,9 +18,12 @@ import io.kubernetes.client.apimachinery.GroupVersionResource;
 import io.kubernetes.client.common.KubernetesListObject;
 import io.kubernetes.client.common.KubernetesObject;
 import io.kubernetes.client.openapi.ApiException;
+import io.kubernetes.client.util.exception.IncompleteDiscoveryException;
+import io.kubernetes.client.util.generic.dynamic.DynamicKubernetesObject;
 import java.io.File;
 
 import java.io.IOException;
+import java.net.JarURLConnection;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLDecoder;
@@ -213,8 +216,15 @@ public class ModelMapper {
     if (clazz != null) {
       return clazz;
     }
-    return preBuiltGetApiTypeClass(group, version, kind);
+
+    clazz = preBuiltGetApiTypeClass(group, version, kind);
+
+    if (clazz != null) {
+      return clazz;
+    }
+    return DynamicKubernetesObject.class;
   }
+
 
   /**
    * Gets the GVK by the given model class.
@@ -266,7 +276,13 @@ public class ModelMapper {
       return lastAPIDiscovery;
     }
 
-    Set<Discovery.APIResource> apiResources = discovery.findAll();
+    Set<Discovery.APIResource> apiResources = null;
+    try {
+      apiResources = discovery.findAll();
+    } catch (IncompleteDiscoveryException e) {
+      logger.warn("Error while getting all api resources, some api resources will not be refreshed", e);
+      apiResources = e.getDiscoveredResources();
+    }
 
     for (Discovery.APIResource apiResource : apiResources) {
       for (String version : apiResource.getVersions()) {
@@ -414,9 +430,7 @@ public class ModelMapper {
       preBuiltClassesByGVK.put(new GroupVersionKind(group, version, kind), clazz);
     }
     if (preBuiltClassesByGVK.size() == 0) {
-      logger.warn(
-          "No kubernetes api model classes found from classloader, "
-              + "this may break automatic api discovery");
+      logger.warn("No kubernetes api model classes found from classloader, " + "this may break automatic api discovery");
     }
   }
 
@@ -478,14 +492,26 @@ public class ModelMapper {
 
   private static void processJarPackage(URL packageURL, String packageName, String pkg, ArrayList<String> names) throws IOException {
     String jarFileName = URLDecoder.decode(packageURL.getFile(), "UTF-8");
-    jarFileName = jarFileName.substring(5, jarFileName.indexOf("!"));
-    logger.info("Loading classes from jar {}", jarFileName);
-    try (JarFile jf = new JarFile(jarFileName)) {
-      Enumeration<JarEntry> jarEntries = jf.entries();
-      while (jarEntries.hasMoreElements()) {
-        processJarEntry(jarEntries.nextElement(), packageName, pkg, names);
-      }
+    JarFile jf = null;
+    // jar: client in repository; nested: client in a fat jar
+    if (jarFileName.startsWith("jar:") || jarFileName.startsWith("nested:")) {
+      jf = ((JarURLConnection) packageURL.openConnection()).getJarFile();
     }
+    // file: client is a file in target (unit test)
+    if (jarFileName.startsWith("file:") ) {
+      jarFileName = jarFileName.substring(5, jarFileName.indexOf("!"));
+      jf = new JarFile(jarFileName);
+    }
+    if (jf == null) {
+      logger.error("Loading classes from jar with error packageURL: {}", jarFileName);
+      return;
+    }
+    logger.info("Loading classes from jar {}", jarFileName);
+    Enumeration<JarEntry> jarEntries = jf.entries();
+    while (jarEntries.hasMoreElements()) {
+      processJarEntry(jarEntries.nextElement(), packageName, pkg, names);
+    }
+    jf.close();
   }
 
   private static void processJarEntry(JarEntry jarEntry, String packageName, String pkg, ArrayList<String> names) {

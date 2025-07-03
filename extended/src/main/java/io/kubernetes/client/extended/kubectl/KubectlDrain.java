@@ -63,30 +63,27 @@ public class KubectlDrain extends KubectlCordon {
     V1Node node = performCordon();
 
     V1PodList allPods =
-        api.listPodForAllNamespaces(
-            null,
-            null,
-            "spec.nodeName=" + node.getMetadata().getName(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null);
+        api.listPodForAllNamespaces()
+                .fieldSelector("spec.nodeName=" + node.getMetadata().getName())
+                .execute();
 
     validatePods(allPods.getItems());
 
+    boolean isDaemonSetPod;
     for (V1Pod pod : allPods.getItems()) {
+      isDaemonSetPod = false;
       // at this point we know, that we have to ignore daemon set pods
       if (pod.getMetadata().getOwnerReferences() != null) {
         for (V1OwnerReference ref : pod.getMetadata().getOwnerReferences()) {
           if (ref.getKind().equals("DaemonSet")) {
-            continue;
+            isDaemonSetPod = true;
+            break;
           }
         }
       }
-      deletePod(api, pod.getMetadata().getName(), pod.getMetadata().getNamespace());
+      if (!isDaemonSetPod) {
+        deletePod(api, pod.getMetadata().getName(), pod.getMetadata().getNamespace());
+      }
     }
     return node;
   }
@@ -96,9 +93,6 @@ public class KubectlDrain extends KubectlCordon {
     for (V1Pod pod : pods) {
       if (pod.getMetadata().getOwnerReferences() == null) continue;
 
-      if (!force && pod.getMetadata().getOwnerReferences().size() == 0) {
-        throw new KubectlException("Pods unmanaged by a controller are present on the node");
-      }
       // Throw exception if there are daemon set pods and ignore daemon set is false
       if (!ignoreDaemonSets) {
         for (V1OwnerReference ref : pod.getMetadata().getOwnerReferences()) {
@@ -112,7 +106,7 @@ public class KubectlDrain extends KubectlCordon {
 
   private void deletePod(CoreV1Api api, String name, String namespace)
       throws ApiException, IOException, KubectlException {
-    api.deleteNamespacedPod(name, namespace, null, null, this.gracePeriodSeconds, null, null, null);
+    api.deleteNamespacedPod(name, namespace).gracePeriodSeconds(gracePeriodSeconds).execute();
     waitForPodDelete(api, name, namespace);
   }
 
@@ -121,7 +115,7 @@ public class KubectlDrain extends KubectlCordon {
     long start = System.currentTimeMillis();
     do {
       try {
-        api.readNamespacedPod(name, namespace, null);
+        api.readNamespacedPod(name, namespace).execute();
       } catch (ApiException ex) {
         if (ex.getCode() == HttpURLConnection.HTTP_NOT_FOUND) {
           return;

@@ -16,8 +16,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
+import io.kubernetes.client.persister.ConfigPersister;
 import io.kubernetes.client.util.authenticators.Authenticator;
-import io.kubernetes.client.util.authenticators.AzureActiveDirectoryAuthenticator;
 import io.kubernetes.client.util.authenticators.GCPAuthenticator;
 import io.kubernetes.client.util.authenticators.OpenIDConnectAuthenticator;
 import java.io.File;
@@ -78,7 +78,6 @@ public class KubeConfig {
 
   static {
     registerAuthenticator(new GCPAuthenticator());
-    registerAuthenticator(new AzureActiveDirectoryAuthenticator());
     registerAuthenticator(new OpenIDConnectAuthenticator());
   }
 
@@ -230,12 +229,12 @@ public class KubeConfig {
           credentials.put(CRED_TOKEN_KEY, auth.getToken(authConfig));
           return credentials;
         } else {
-          log.error("Unknown auth provider: " + name);
+          log.error("Unknown auth provider: {}", name);
         }
       }
     }
     Map<String, String> credentialsViaExecCredential =
-        credentialsViaExecCredential((Map<String, Object>) currentUser.get("exec"));
+        getCredentialsViaExecCredential((Map<String, Object>) currentUser.get("exec"));
     if (credentialsViaExecCredential != null) {
       return credentialsViaExecCredential;
     }
@@ -265,7 +264,7 @@ public class KubeConfig {
    *     Authenticating » client-go credential plugins</a>
    */
   @SuppressWarnings("unchecked")
-  private Map<String, String> credentialsViaExecCredential(Map<String, Object> execMap) {
+  private Map<String, String> getCredentialsViaExecCredential(Map<String, Object> execMap) {
     if (execMap == null) {
       return null;
     }
@@ -329,7 +328,14 @@ public class KubeConfig {
     if (command.contains("/") || command.contains("\\")) {
       // Spec is unclear on what should be treated as a “relative command path”.
       // This clause should cover anything not resolved from $PATH / %Path%.
-      Path resolvedCommand = file.toPath().getParent().resolve(command).normalize();
+      Path resolvedCommand;
+      if (file != null) {
+        // If we know where the Kubeconfig was located, use that as the base.
+        resolvedCommand = file.toPath().getParent().resolve(command).normalize();
+      } else {
+        // Otherwise, try the current working directory
+        resolvedCommand = Paths.get(command).normalize();
+      }
       if (!Files.exists(resolvedCommand)) {
         log.error("No such file: {}", resolvedCommand);
         return null;
@@ -357,7 +363,7 @@ public class KubeConfig {
           Reader r = new InputStreamReader(is, StandardCharsets.UTF_8)) {
         root = JsonParser.parseReader(r);
       } catch (JsonParseException x) {
-        log.error("Failed to parse output of " + command, x);
+        log.error("Failed to parse output of {}", command, x);
         return null;
       }
       int r = proc.waitFor();
@@ -367,7 +373,7 @@ public class KubeConfig {
       }
       return root;
     } catch (IOException | InterruptedException x) {
-      log.error("Failed to run " + command, x);
+      log.error("Failed to run {}", command, x);
       return null;
     }
   }

@@ -98,7 +98,7 @@ public class KubectlTop<ApiType extends KubernetesObject, MetricsType>
   private List<Pair<ApiType, MetricsType>> topNodes(
       CoreV1Api api, ApiClient apiClient, String metricName)
       throws KubectlException, ApiException, IOException {
-    V1NodeList nodes = api.listNode(null, null, null, null, null, null, null, null, null, null);
+    V1NodeList nodes = api.listNode().execute();
     NodeMetricsList metrics = new Metrics(apiClient).getNodeMetrics();
     List<V1Node> items = nodes.getItems();
     Collections.sort(
@@ -138,6 +138,9 @@ public class KubectlTop<ApiType extends KubernetesObject, MetricsType>
 
   public static double podMetricSum(PodMetrics podMetrics, String metricName) {
     double sum = 0;
+    if (podMetrics == null) {
+      return 0;
+    }
     for (ContainerMetrics containerMetrics : podMetrics.getContainers()) {
       Quantity value = containerMetrics.getUsage().get(metricName);
       if (value != null) {
@@ -152,7 +155,7 @@ public class KubectlTop<ApiType extends KubernetesObject, MetricsType>
       throws KubectlException, ApiException, IOException {
     V1PodList pods =
         api.listNamespacedPod(
-            namespace, null, null, null, null, null, null, null, null, null, null);
+            namespace).execute();
     PodMetricsList metrics = new Metrics(apiClient).getPodMetrics(namespace);
     List<V1Pod> items = pods.getItems();
     Collections.sort(
@@ -170,7 +173,11 @@ public class KubectlTop<ApiType extends KubernetesObject, MetricsType>
 
     List<Pair<ApiType, MetricsType>> result = new ArrayList<>();
     for (V1Pod pod : items) {
-      result.add(new ImmutablePair<>((ApiType) pod, (MetricsType) findPodMetric(pod, metrics)));
+      PodMetrics podMetrics = findPodMetric(pod, metrics);
+      if (podMetrics == null) {
+        continue;
+      }
+      result.add(new ImmutablePair<>((ApiType) pod, (MetricsType) podMetrics));
     }
     return result;
   }
